@@ -2,7 +2,14 @@ from typing import Any
 import asyncio
 import httpx
 import os
+import sys
 from mcp.server.fastmcp import FastMCP
+
+# Ensure UTF-8 output on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # Initialize FastMCP server
 port = int(os.getenv("PORT", 8085))
@@ -61,7 +68,20 @@ async def get_current_weather(city: str) -> str:
 
     if not data:
         if not API_KEY:
-            return f"❌ WeatherAPI key not configured. Please set WEATHERAPI_KEY environment variable with your API key from weatherapi.com"
+            # Fallback mock data when API_KEY is not set so the agent can test full tool call flow
+            return f"""Current Weather for {city} (Mock Data - set WEATHERAPI_KEY for live data):
+
+Temperature: 28°C (82°F)
+Feels like: 30°C (86°F)
+Condition: Partly Cloudy
+Humidity: 70%
+Wind: 15 km/h E
+Pressure: 1012 mb
+UV Index: 5
+Visibility: 10 km
+
+Last updated: Live Mock
+"""
         return f"Unable to fetch current weather data for {city}. Please check the city name and API key configuration."
 
     current = data["current"]
@@ -104,7 +124,24 @@ async def get_forecast(city: str, days: int = 3) -> str:
 
     if not data:
         if not API_KEY:
-            return f"❌ WeatherAPI key not configured. Please set WEATHERAPI_KEY environment variable with your API key from weatherapi.com"
+            return f"""Weather Forecast for {city} (Mock Data - set WEATHERAPI_KEY for live data):
+
+Day 1:
+High: 31°C (88°F)
+Low: 24°C (75°F)
+Condition: Sunny
+Chance of Rain: 10%
+Max Wind: 14 km/h
+UV Index: 6
+---
+Day 2:
+High: 29°C (84°F)
+Low: 23°C (73°F)
+Condition: Scattered Showers
+Chance of Rain: 50%
+Max Wind: 18 km/h
+UV Index: 4
+"""
         return f"Unable to fetch forecast data for {city}. Please check the city name and API key configuration."
 
     location = data["location"]
@@ -141,12 +178,10 @@ print("🔧 Available tools: get_current_weather, get_forecast, health_check")
 if __name__ == "__main__":
     import sys
     
-    is_cloud_run = bool(os.getenv("PORT"))
-    is_standalone = len(sys.argv) == 1 and sys.stdin.isatty()
-    
-    if is_cloud_run or is_standalone:
-        print(f"🚀 Starting MCP server on http://0.0.0.0:{port}/mcp")
-        mcp.run(transport="streamable-http")
-    else:
+    use_stdio = "--stdio" in sys.argv
+    if use_stdio:
         print("Starting FastMCP server in stdio mode for local client", file=sys.stderr)
         mcp.run()
+    else:
+        print(f"🚀 Starting MCP server on http://0.0.0.0:{port}/mcp")
+        mcp.run(transport="streamable-http")
